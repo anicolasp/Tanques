@@ -353,7 +353,7 @@ namespace Tanks.Complete
             if(m_CurrentPath == null || m_CurrentPath.corners.Length == 0)
                 return;
             
-            Rigidbody rb = GetComponent<Rigidbody>();
+            var rb = m_Movement.Rigidbody;
             
             //The point we will orient toward. By default, the current corner in our path
             Vector3 orientTarget = m_CurrentPath.corners[Mathf.Min(m_CurrentCorner, m_CurrentPath.corners.Length - 1)];

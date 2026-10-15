@@ -23,6 +23,13 @@ namespace Tanks.Complete
             public GameObject UsedPrefab;
             public int ControlIndex;
         }
+
+        [Header("Timer")]
+        public TextMeshProUGUI m_TimerText;         // Texto de la UI donde se muestra el tiempo restante.
+        public float m_GameTimeLimit = 240f;        // Tiempo total para ganar la partida (4 minutos).
+
+        private float m_TimeRemaining;              // Tiempo que queda.
+        private bool m_TimerRunning = false;        // true mientras la cuenta atrás está activa.
         
         public int m_NumRoundsToWin = 5;            // The number of rounds a single player has to win to win the game.
         public float m_StartDelay = 3f;             // The delay between the start of RoundStarting and RoundPlaying phases.
@@ -80,12 +87,76 @@ namespace Tanks.Complete
             // Create the delays so they only have to be made once.
             m_StartWait = new WaitForSeconds (m_StartDelay);
             m_EndWait = new WaitForSeconds (m_EndDelay);
+            m_TimeRemaining = m_GameTimeLimit;
+            m_TimerRunning = true;
+            if (m_TimerText != null)
+                m_TimerText.gameObject.SetActive(true);
+            UpdateTimerText();
 
             SpawnAllTanks();
             SetCameraTargets();
 
             // Once the tanks have been created and the camera is using them as targets, start the game.
             StartCoroutine (GameLoop ());
+        }
+
+        private void Update()
+        {
+            if (!m_TimerRunning)
+                return;
+
+            m_TimeRemaining -= Time.deltaTime;
+            if (m_TimeRemaining < 0f)
+                m_TimeRemaining = 0f;
+
+            UpdateTimerText();
+
+            // Se acabó el tiempo: paramos el bucle de rondas y cerramos la partida.
+            if (m_TimeRemaining <= 0f)
+            {
+                m_TimerRunning = false;
+                StopAllCoroutines();
+                StartCoroutine(TimeUp());
+            }
+        }
+
+        private void UpdateTimerText()
+        {
+            if (m_TimerText == null)
+                return;
+
+            int total = Mathf.CeilToInt(m_TimeRemaining);
+            m_TimerText.text = string.Format("{0:00}:{1:00}", total / 60, total % 60);
+        }
+
+        // Se ejecuta cuando el tiempo llega a 0 sin que nadie haya ganado las rondas necesarias.
+        private IEnumerator TimeUp()
+        {
+            DisableTankControl();
+
+            // Gana quien tenga más victorias. Si hay empate en lo más alto, es empate.
+            TankManager best = null;
+            bool tie = false;
+            for (int i = 0; i < m_PlayerCount; i++)
+            {
+                if (best == null || m_SpawnPoints[i].m_Wins > best.m_Wins)
+                {
+                    best = m_SpawnPoints[i];
+                    tie = false;
+                }
+                else if (m_SpawnPoints[i].m_Wins == best.m_Wins)
+                {
+                    tie = true;
+                }
+            }
+
+            string message = "¡SE ACABÓ EL TIEMPO!\n\n";
+            message += (best == null || tie) ? "EMPATE" : best.m_ColoredPlayerText + " GANA EL JUEGO!";
+            m_TitleText.text = message;
+
+            yield return m_EndWait;
+
+            SceneManager.LoadScene(0);
         }
 
         void ChangeGameState(GameState newState)
@@ -239,6 +310,8 @@ namespace Tanks.Complete
 
             // Now the winner's score has been incremented, see if someone has one the game.
             m_GameWinner = GetGameWinner ();
+            if (m_GameWinner != null)
+             m_TimerRunning = false;     
 
             // Get a message based on the scores and whether or not there is a game winner and display it.
             string message = EndMessage ();
@@ -304,25 +377,20 @@ namespace Tanks.Complete
         // Returns a string message to display at the end of each round.
         private string EndMessage()
         {
-            // By default when a round ends there are no winners so the default end message is a draw.
-            string message = "DRAW!";
+            string message = "EMPATE!";
 
-            // If there is a winner then change the message to reflect that.
             if (m_RoundWinner != null)
-                message = m_RoundWinner.m_ColoredPlayerText + " WINS THE ROUND!";
+                message = m_RoundWinner.m_ColoredPlayerText + " GANA LA RONDA!";
 
-            // Add some line breaks after the initial message.
             message += "\n\n\n\n";
 
-            // Go through all the tanks and add each of their scores to the message.
             for (int i = 0; i < m_PlayerCount; i++)
             {
-                message += m_SpawnPoints[i].m_ColoredPlayerText + ": " + m_SpawnPoints[i].m_Wins + " WINS\n";
+                message += m_SpawnPoints[i].m_ColoredPlayerText + ": " + m_SpawnPoints[i].m_Wins + " VICTORIAS\n";
             }
 
-            // If there is a game winner, change the entire message to reflect that.
             if (m_GameWinner != null)
-                message = m_GameWinner.m_ColoredPlayerText + " WINS THE GAME!";
+                message = m_GameWinner.m_ColoredPlayerText + " GANA EL JUEGO!";
 
             return message;
         }

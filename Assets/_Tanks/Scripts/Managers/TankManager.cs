@@ -1,93 +1,86 @@
 ﻿using System;
+using UnityEngine;
+using UnityEngine.InputSystem.Users;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.UIElements;
-#endif
-using UnityEngine;
-using UnityEngine.InputSystem.Users;
 using UnityEngine.UIElements;
+#endif
 
 namespace Tanks.Complete
 {
     [Serializable]
     public class TankManager
     {
-        // This class is to manage various settings on a tank.
-        // It works with the GameManager class to control how the tanks behave
-        // and whether or not players have control of their tank in the 
-        // different phases of the game.
+        // Gestiona varios ajustes de un tanque y trabaja con el GameManager para
+        // controlar si los jugadores tienen control de su tanque en cada fase del juego.
 
-        [HideInInspector] public Color m_PlayerColor;           // This is the color this tank will be tinted.
-        public Transform m_SpawnPoint;                          // The position and direction the tank will have when it spawns.
-        [HideInInspector] public int m_PlayerNumber;            // This specifies which player this the manager for.
-        [HideInInspector] public string m_ColoredPlayerText;    // A string that represents the player with their number colored to match their tank.
-        [HideInInspector] public GameObject m_Instance;         // A reference to the instance of the tank when it is created.
-        [HideInInspector] public int m_Wins;                    // The number of wins this player has so far.
-        [HideInInspector] public bool m_ComputerControlled;     // Is that tank computer controlled
-        
-        public int ControlIndex { get; set; } = 1;              //this defines the index of the control 1 = left keyboard or pad, 2 = right keyboard, -1 = no control
+        [HideInInspector] public Color m_PlayerColor;           // Color con el que se tiñe el tanque.
+        public Transform m_SpawnPoint;                          // Posición y dirección del tanque al aparecer.
+        [HideInInspector] public int m_PlayerNumber;            // Jugador al que pertenece este manager.
+        [HideInInspector] public string m_ColoredPlayerText;    // Texto del jugador con su número coloreado.
+        [HideInInspector] public GameObject m_Instance;         // Instancia del tanque cuando se crea.
+        [HideInInspector] public int m_Wins;                    // Victorias del jugador.
+        [HideInInspector] public bool m_ComputerControlled;     // Si el tanque lo controla la IA.
 
+        public int ControlIndex { get; set; } = 1;              // Índice de control: 1 = teclado/mando izquierdo, 2 = teclado derecho, -1 = sin control.
 
-        private TankMovement m_Movement;                        // Reference to tank's movement script, used to disable and enable control.
-        private TankShooting m_Shooting;                        // Reference to tank's shooting script, used to disable and enable control.
-        private GameObject m_CanvasGameObject;                  // Used to disable the world space UI during the Starting and Ending phases of each round.
-        
-        private TankAI m_AI;                                    // The Tank AI script that let a tank be a bot controlled by the computer
-        private InputUser m_InputUser;                          // The Input user link to that tank. Input user identify a single player in the Input system
-        
+        private TankMovement m_Movement;                        // Script de movimiento, para activar/desactivar el control.
+        private TankShooting m_Shooting;                        // Script de disparo, para activar/desactivar el control.
+        private GameObject m_CanvasGameObject;                  // UI en espacio de mundo, se oculta al empezar/terminar rondas.
+
+        private TankAI m_AI;                                    // Script de IA para tanques controlados por el ordenador.
+        private InputUser m_InputUser;                          // Usuario de entrada asociado al tanque.
+
         public void Setup (GameManager manager)
         {
-            // Get references to the components.
+            // Obtengo las referencias a los componentes.
             m_Movement = m_Instance.GetComponent<TankMovement> ();
             m_Shooting = m_Instance.GetComponent<TankShooting> ();
             m_AI = m_Instance.GetComponent<TankAI> ();
             m_CanvasGameObject = m_Instance.GetComponentInChildren<Canvas> ().gameObject;
 
-            // Assign the Input User of that Tank to the script controlling input system binding, so the move/fire actions
-            // get only triggered by the right input for that users (e.g. arrow doesn't trigger move if that input user use WASD)
+            // Asigno el Input User del tanque al script que controla el input, para que
+            // las acciones solo respondan a la entrada de ese usuario.
             var inputUser = m_Instance.GetComponent<TankInputUser>();
             inputUser.SetNewInputUser(m_InputUser);
 
-            // Toggle computer controlled on the movement/firing if this tank was tagged as being computer controlled
+            // Activo el control por ordenador en movimiento y disparo si corresponde.
             m_Movement.m_IsComputerControlled = m_ComputerControlled;
             m_Shooting.m_IsComputerControlled = m_ComputerControlled;
-            
-            // Pass along the player number and control index to the movement components. See the TankMovement script for
-            // hose those are used to decided which input the movement respond to.
+
+            // Paso el número de jugador y el índice de control al movimiento.
             m_Movement.m_PlayerNumber = m_PlayerNumber;
             m_Movement.ControlIndex = ControlIndex;
 
-            // If this tank is computer controlled, add a TankAI component that take care of controlling the behavior
+            // Si el tanque es controlado por el ordenador, añado el componente TankAI.
             if(m_ComputerControlled)
             {
                 m_AI = m_Instance.AddComponent<TankAI>();
                 m_AI.Setup(manager);
             }
-            
-            // Create a string using the correct color that says 'PLAYER 1' etc based on the tank's color and the player's number.
+
+            // Creo el texto "PLAYER 1", etc. con el color del tanque.
             m_ColoredPlayerText = "<color=#" + ColorUtility.ToHtmlStringRGB(m_PlayerColor) + ">PLAYER " + m_PlayerNumber + "</color>";
 
-            // Get all of the renderers of the tank.
+            // Obtengo todos los renderers del tanque.
             MeshRenderer[] renderers = m_Instance.GetComponentsInChildren<MeshRenderer> ();
 
-            // Go through all the renderers...
             for (int i = 0; i < renderers.Length; i++)
             {
                 var renderer = renderers[i];
                 for (int j = 0; j < renderer.materials.Length; ++j)
                 {
-                    // If the material is the tank color one...
+                    // Si el material es el del color del tanque, lo cambio al color del jugador.
                     if (renderer.materials[j].name.Contains("TankColor"))
                     {
-                        // change its color to the player color
                         renderer.materials[j].color = m_PlayerColor;
                     }
                 }
             }
         }
 
-
-        // Used during the phases of the game where the player shouldn't be able to control their tank.
+        // Se usa en las fases en las que el jugador no debe controlar su tanque.
         public void DisableControl ()
         {
             m_Movement.enabled = false;
@@ -98,8 +91,7 @@ namespace Tanks.Complete
             m_CanvasGameObject.SetActive (false);
         }
 
-
-        // Used during the phases of the game where the player should be able to control their tank.
+        // Se usa en las fases en las que el jugador sí debe controlar su tanque.
         public void EnableControl ()
         {
             m_Movement.enabled = true;
@@ -110,8 +102,7 @@ namespace Tanks.Complete
             m_CanvasGameObject.SetActive (true);
         }
 
-
-        // Used at the start of each round to put the tank into it's default state.
+        // Se usa al inicio de cada ronda para dejar el tanque en su estado por defecto.
         public void Reset ()
         {
             m_Instance.transform.position = m_SpawnPoint.position;
@@ -121,13 +112,10 @@ namespace Tanks.Complete
             m_Instance.SetActive (true);
         }
     }
-    
-    
-    #if UNITY_EDITOR
-    // This is a class only used in the unity editor (and not in the final game). It customizes how the TankManager component
-    // will appear in the Inspector. The default make a foldout entry where SpawnPoint is "inside" the TankManager foldout
-    // in the manager array in the GameManager. This change this behavior to directly display the spawn point in the TankManager
-    // Inspector, simplifying the display in the GameManager.
+
+#if UNITY_EDITOR
+    // Solo para el editor: muestra directamente el punto de aparición en el Inspector
+    // en lugar de un desplegable dentro del TankManager en el GameManager.
     [CustomPropertyDrawer(typeof(TankManager))]
     public class TankManagerDrawer : PropertyDrawer
     {
@@ -137,5 +125,5 @@ namespace Tanks.Complete
             return itemSlot;
         }
     }
-    #endif
+#endif
 }
